@@ -3,125 +3,274 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Chess Game</title>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <title>Marathimavala Games</title>
+  <style>
+    :root {
+      --ink: #181a1f;
+      --muted: #6c727a;
+      --line: rgba(24, 26, 31, 0.1);
+      --panel: rgba(255, 255, 255, 0.74);
+      --chess: #17685f;
+      --tt: #a9232b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+    }
+
+    body {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      background:
+        radial-gradient(circle at 12% 5%, rgba(23, 104, 95, 0.16), transparent 28%),
+        radial-gradient(circle at 88% 15%, rgba(169, 35, 43, 0.14), transparent 28%),
+        linear-gradient(180deg, #fffdf7 0%, #f1eee7 100%);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    header,
+    footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 18px clamp(18px, 5vw, 56px);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 850;
+      letter-spacing: -0.03em;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      border-radius: 12px;
+      background: #181a1f;
+      color: #fff;
+    }
+
+    .credit,
+    footer {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .credit strong,
+    footer strong {
+      color: var(--ink);
+    }
+
+    main {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+      padding: clamp(28px, 6vw, 72px) clamp(16px, 4vw, 28px);
+      display: grid;
+      gap: 28px;
+      align-content: center;
+    }
+
+    .hero {
+      display: grid;
+      gap: 12px;
+      max-width: 760px;
+    }
+
+    .eyebrow {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 850;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.6rem, 8vw, 6.4rem);
+      line-height: 0.92;
+      letter-spacing: -0.08em;
+    }
+
+    .hero p {
+      max-width: 620px;
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(1rem, 2vw, 1.18rem);
+      line-height: 1.55;
+    }
+
+    .game-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .game-card {
+      min-height: 320px;
+      display: grid;
+      align-content: space-between;
+      gap: 24px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 26px;
+      background: var(--panel);
+      color: var(--ink);
+      text-decoration: none;
+      box-shadow: 0 24px 70px rgba(24, 26, 31, 0.08);
+      overflow: hidden;
+      position: relative;
+      transition: transform 180ms ease, box-shadow 180ms ease;
+    }
+
+    .game-card:hover,
+    .game-card:focus-visible {
+      transform: translateY(-4px);
+      box-shadow: 0 34px 90px rgba(24, 26, 31, 0.13);
+      outline: none;
+    }
+
+    .game-card::after {
+      content: "";
+      position: absolute;
+      inset: auto -20% -35% 20%;
+      height: 220px;
+      border-radius: 999px;
+      opacity: 0.16;
+      filter: blur(2px);
+    }
+
+    .game-card.chess::after {
+      background: var(--chess);
+    }
+
+    .game-card.tt::after {
+      background: var(--tt);
+    }
+
+    .game-icon {
+      display: grid;
+      width: 58px;
+      height: 58px;
+      place-items: center;
+      border-radius: 18px;
+      color: #fff;
+      font-size: 1.8rem;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    }
+
+    .chess .game-icon {
+      background: linear-gradient(145deg, #1f625b, #103a35);
+    }
+
+    .tt .game-icon {
+      background: linear-gradient(145deg, #c93139, #761620);
+    }
+
+    .game-copy {
+      display: grid;
+      gap: 8px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .game-copy h2 {
+      margin: 0;
+      font-size: clamp(1.8rem, 4vw, 3.1rem);
+      letter-spacing: -0.06em;
+      line-height: 0.98;
+    }
+
+    .game-copy p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .play-link {
+      width: max-content;
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 16px;
+      border-radius: 999px;
+      background: #181a1f;
+      color: #fff;
+      font-weight: 800;
+      position: relative;
+      z-index: 1;
+    }
+
+    @media (max-width: 760px) {
+      header,
+      footer {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .game-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .game-card {
+        min-height: 260px;
+      }
+    }
+  </style>
 </head>
 <body>
-  <header class="site-header">
-    <a class="brand-mark" href="#app" aria-label="Chess Game home">
-      <span class="brand-icon">♜</span>
-      <span class="brand-copy">Chess Game</span>
-    </a>
-    <div id="mode-selector" class="mode-selector header-modes" aria-label="Choose game mode">
-      <button type="button" onclick="selectMode('local')" class="mode-btn active">Local</button>
-      <button type="button" onclick="selectMode('vs-ai')" class="mode-btn">Computer</button>
-      <button type="button" onclick="selectMode('lichess')" class="mode-btn">Lichess</button>
+  <header>
+    <div class="brand">
+      <span class="brand-mark">M</span>
+      <span>Marathimavala Games</span>
     </div>
-    <div class="developer-tag">Developed by <strong>marathimavala</strong></div>
+    <div class="credit">Built by <strong>marathimavala</strong></div>
   </header>
 
-  <main id="app" class="chess-app">
-    <section class="game-shell">
-      <div id="lichess-panel" class="lichess-panel" style="display:none">
-        <div>
-          <h2>Lichess</h2>
-          <p>Enter your username to create a quick challenge link.</p>
-        </div>
-        <div class="lichess-controls">
-          <input type="text" id="lichess-username" class="form-control" placeholder="Lichess username" />
-          <button type="button" onclick="lichessLogin()" class="btn btn-dark">Login</button>
-          <button type="button" onclick="generateLichessChallenge()" class="btn btn-outline-dark">Challenge</button>
-        </div>
-        <p id="lichess-status" class="lichess-status"></p>
-      </div>
+  <main>
+    <section class="hero" aria-labelledby="page-title">
+      <p class="eyebrow">Choose your game</p>
+      <h1 id="page-title">Two games. One clean arcade.</h1>
+      <p>Play a focused chess match or jump into a quick vertical table tennis rally. Pick a game and start playing in the browser.</p>
+    </section>
 
-      <section class="play-area" aria-label="Chess game">
-        <aside class="capture-panel" aria-label="Captured pieces">
-          <div class="capture-header">
-            <div>
-              <span class="panel-label">Material</span>
-              <strong id="material-balance" class="material-balance">Even</strong>
-            </div>
-            <span class="capture-count" id="captured-total">0 pieces</span>
-          </div>
+    <section class="game-grid" aria-label="Available games">
+      <a class="game-card chess" href="games/chess/index.html">
+        <span class="game-icon">♜</span>
+        <span class="game-copy">
+          <h2>Chess</h2>
+          <p>Classic board play with local, computer, timers, captured pieces, and move history.</p>
+        </span>
+        <span class="play-link">Play Chess</span>
+      </a>
 
-          <div class="capture-group">
-            <div class="capture-title">White captured</div>
-            <div id="captured-by-white" class="captured-pieces" aria-label="Pieces captured by white"></div>
-          </div>
-
-          <div class="capture-group">
-            <div class="capture-title">Black captured</div>
-            <div id="captured-by-black" class="captured-pieces" aria-label="Pieces captured by black"></div>
-          </div>
-        </aside>
-
-        <div class="board-wrap">
-          <div id="board" class="board" aria-label="Chess board"></div>
-        </div>
-
-        <aside class="game-panel" aria-label="Game details">
-          <div class="panel-section controls-section">
-            <div class="tools-heading">
-              <div>
-                <span class="panel-label">Game</span>
-                <strong id="turn-indicator" class="turn-indicator">White to move</strong>
-              </div>
-              <button type="button" class="new-game-btn" onclick="newGame()">New Game</button>
-            </div>
-            <div class="clock-grid" aria-label="Chess clocks">
-              <div class="clock-card" id="white-clock-card">
-                <span>White</span>
-                <strong id="white-clock">10:00</strong>
-              </div>
-              <div class="clock-card" id="black-clock-card">
-                <span>Black</span>
-                <strong id="black-clock">10:00</strong>
-              </div>
-            </div>
-            <div class="settings-grid" aria-label="Game settings">
-              <label class="setting-field">
-                <span>Time</span>
-                <select id="time-control" onchange="changeTimeControl(this.value)">
-                  <option value="3">3 min</option>
-                  <option value="5">5 min</option>
-                  <option value="10" selected>10 min</option>
-                  <option value="15">15 min</option>
-                  <option value="30">30 min</option>
-                </select>
-              </label>
-              <label class="setting-field">
-                <span>Computer</span>
-                <select id="ai-level" onchange="changeAILevel(this.value)">
-                  <option value="1">Beginner</option>
-                  <option value="2">Casual</option>
-                  <option value="3" selected>Club</option>
-                  <option value="4">Advanced</option>
-                  <option value="5">Master</option>
-                </select>
-              </label>
-            </div>
-          </div>
-
-          <div id="move-history" class="panel-section move-history">
-            <div class="panel-heading">
-              <span class="panel-label">Moves</span>
-              <span class="move-count">History</span>
-            </div>
-            <div id="move-history-list" class="move-history-list"></div>
-          </div>
-        </aside>
-      </section>
+      <a class="game-card tt" href="games/table-tennis/index.html">
+        <span class="game-icon">●</span>
+        <span class="game-copy">
+          <h2>Table Tennis</h2>
+          <p>Fast vertical rallies with racket shots, speed controls, serves, spin, and smash actions.</p>
+        </span>
+        <span class="play-link">Play Table Tennis</span>
+      </a>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <span>Chess Game</span>
-    <span>Built by <strong>marathimavala</strong></span>
+  <footer>
+    <span>Chess and Table Tennis</span>
+    <span>Made for quick browser play</span>
   </footer>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-  <script src="script.js"></script>
 </body>
 </html>

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chess Game</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand-mark" href="#app" aria-label="Chess Game home">
+      <span class="brand-icon">♜</span>
+      <span class="brand-copy">Chess Game</span>
+    </a>
+    <div id="mode-selector" class="mode-selector header-modes" aria-label="Choose game mode">
+      <button type="button" onclick="selectMode('local')" class="mode-btn active">Local</button>
+      <button type="button" onclick="selectMode('vs-ai')" class="mode-btn">Computer</button>
+      <button type="button" onclick="selectMode('lichess')" class="mode-btn">Lichess</button>
+    </div>
+    <div class="developer-tag">Developed by <strong>marathimavala</strong></div>
+  </header>
+
+  <main id="app" class="chess-app">
+    <section class="game-shell">
+      <div id="lichess-panel" class="lichess-panel" style="display:none">
+        <div>
+          <h2>Lichess</h2>
+          <p>Enter your username to create a quick challenge link.</p>
+        </div>
+        <div class="lichess-controls">
+          <input type="text" id="lichess-username" class="form-control" placeholder="Lichess username" />
+          <button type="button" onclick="lichessLogin()" class="btn btn-dark">Login</button>
+          <button type="button" onclick="generateLichessChallenge()" class="btn btn-outline-dark">Challenge</button>
+        </div>
+        <p id="lichess-status" class="lichess-status"></p>
+      </div>
+
+      <section class="play-area" aria-label="Chess game">
+        <aside class="capture-panel" aria-label="Captured pieces">
+          <div class="capture-header">
+            <div>
+              <span class="panel-label">Material</span>
+              <strong id="material-balance" class="material-balance">Even</strong>
+            </div>
+            <span class="capture-count" id="captured-total">0 pieces</span>
+          </div>
+
+          <div class="capture-group">
+            <div class="capture-title">White captured</div>
+            <div id="captured-by-white" class="captured-pieces" aria-label="Pieces captured by white"></div>
+          </div>
+
+          <div class="capture-group">
+            <div class="capture-title">Black captured</div>
+            <div id="captured-by-black" class="captured-pieces" aria-label="Pieces captured by black"></div>
+          </div>
+        </aside>
+
+        <div class="board-wrap">
+          <div id="board" class="board" aria-label="Chess board"></div>
+        </div>
+
+        <aside class="game-panel" aria-label="Game details">
+          <div class="panel-section controls-section">
+            <div class="tools-heading">
+              <div>
+                <span class="panel-label">Game</span>
+                <strong id="turn-indicator" class="turn-indicator">White to move</strong>
+              </div>
+              <button type="button" class="new-game-btn" onclick="newGame()">New Game</button>
+            </div>
+            <div class="clock-grid" aria-label="Chess clocks">
+              <div class="clock-card" id="white-clock-card">
+                <span>White</span>
+                <strong id="white-clock">10:00</strong>
+              </div>
+              <div class="clock-card" id="black-clock-card">
+                <span>Black</span>
+                <strong id="black-clock">10:00</strong>
+              </div>
+            </div>
+            <div class="settings-grid" aria-label="Game settings">
+              <label class="setting-field">
+                <span>Time</span>
+                <select id="time-control" onchange="changeTimeControl(this.value)">
+                  <option value="3">3 min</option>
+                  <option value="5">5 min</option>
+                  <option value="10" selected>10 min</option>
+                  <option value="15">15 min</option>
+                  <option value="30">30 min</option>
+                </select>
+              </label>
+              <label class="setting-field">
+                <span>Computer</span>
+                <select id="ai-level" onchange="changeAILevel(this.value)">
+                  <option value="1">Beginner</option>
+                  <option value="2">Casual</option>
+                  <option value="3" selected>Club</option>
+                  <option value="4">Advanced</option>
+                  <option value="5">Master</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div id="move-history" class="panel-section move-history">
+            <div class="panel-heading">
+              <span class="panel-label">Moves</span>
+              <span class="move-count">History</span>
+            </div>
+            <div id="move-history-list" class="move-history-list"></div>
+          </div>
+        </aside>
+      </section>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>Chess Game</span>
+    <span>Built by <strong>marathimavala</strong></span>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
