@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chess Game — Phase 1</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <h1>♟ Chess Game ♟</h1>
+    <div id="mode-selector">
+      <button onclick="selectMode('local')">Local Game</button>
+      <button onclick="selectMode('vs-ai')">vs Computer</button>
+      <button onclick="selectMode('lichess')">Play on Lichess</button>
+    </div>
+    <div id="lichess-panel" style="display:none">
+      <h3>Lichess Integration</h3>
+      <input type="text" id="lichess-username" placeholder="Your Lichess username" />
+      <button onclick="lichessLogin()">Login & Play</button>
+      <button onclick="generateLichessChallenge()">Generate Challenge Link</button>
+      <p id="lichess-status"></p>
+    </div>
+    <div id="board" class="board" aria-label="Chess board"></div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
