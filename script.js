@@ -6,10 +6,27 @@ let selectedSquare = null; // { r, c } or null
 let currentTurn = 'white'; // 'white' or 'black'
 let gameOver = false;
 let gameOverReason = '';
-let gameMode = 'local'; // 'local', 'vs-ai', or 'lichess'
+let gameMode = 'two-player'; // 'two-player', 'vs-ai', or 'lichess'
 let lichessGameId = null;
 let lichessUsername = null;
 let lichessStream = null;
+let moveHistory = []; // Track all moves in algebraic notation
+let pieceMoveHistory = {}; // Track which pieces have moved (for castling)
+let capturedPieces = { white: [], black: [] }; // white/black = player who captured
+let aiLevel = 3;
+let timeControlMinutes = 10;
+let clocks = { white: 600, black: 600 };
+let timerInterval = null;
+let clockStarted = false;
+
+const PIECE_VALUES = {
+  p: 100,
+  n: 320,
+  b: 330,
+  r: 500,
+  q: 900,
+  k: 20000
+};
 
 const PIECE_SYMBOLS = {
   'P': '♙','R':'♖','N':'♘','B':'♗','Q':'♕','K':'♔',
@@ -65,15 +82,15 @@ function isLegalMove(fromR, fromC, toR, toC, piece) {
 
   // Rook moves (horizontal or vertical, no blocking)
   if (pieceLower === 'r') {
-    if (dr === 0 && dc !== 0) return isPathClear(fromR, fromC, toR, toC);
-    if (dc === 0 && dr !== 0) return isPathClear(fromR, fromC, toR, toC);
+    if (dr === 0 && dc !== 0) return isPathClearDiagonal(fromR, fromC, toR, toC);
+    if (dc === 0 && dr !== 0) return isPathClearDiagonal(fromR, fromC, toR, toC);
     return false;
   }
 
   // Bishop moves (diagonal, no blocking)
   if (pieceLower === 'b') {
     if (Math.abs(dr) === Math.abs(dc) && dr !== 0) {
-      return isPathClear(fromR, fromC, toR, toC);
+      return isPathClearDiagonal(fromR, fromC, toR, toC);
     }
     return false;
   }
@@ -89,18 +106,23 @@ function isLegalMove(fromR, fromC, toR, toC, piece) {
 
   // Queen moves (rook + bishop)
   if (pieceLower === 'q') {
-    if (dr === 0 && dc !== 0) return isPathClear(fromR, fromC, toR, toC); // horizontal
-    if (dc === 0 && dr !== 0) return isPathClear(fromR, fromC, toR, toC); // vertical
+    if (dr === 0 && dc !== 0) return isPathClearDiagonal(fromR, fromC, toR, toC); // horizontal
+    if (dc === 0 && dr !== 0) return isPathClearDiagonal(fromR, fromC, toR, toC); // vertical
     if (Math.abs(dr) === Math.abs(dc) && dr !== 0) {
-      return isPathClear(fromR, fromC, toR, toC); // diagonal
+      return isPathClearDiagonal(fromR, fromC, toR, toC); // diagonal
     }
     return false;
   }
 
-  // King moves (one square in any direction)
+  // King moves (one square in any direction, or castling)
   if (pieceLower === 'k') {
+    // Normal king move
     if (Math.abs(dr) <= 1 && Math.abs(dc) <= 1 && !(dr === 0 && dc === 0)) {
       return true;
+    }
+    // Castling: 2 squares horizontally
+    if (dr === 0 && Math.abs(dc) === 2) {
+      return canCastle(fromR, fromC, toR, toC, piece);
     }
     return false;
   }
@@ -108,8 +130,55 @@ function isLegalMove(fromR, fromC, toR, toC, piece) {
   return false;
 }
 
-// Check if path is clear between two squares (for sliding pieces)
-function isPathClear(fromR, fromC, toR, toC) {
+// Check if castling is legal
+function canCastle(kingFromR, kingFromC, kingToR, kingToC, king) {
+  const isWhite = isWhitePiece(king);
+  const color = isWhite ? 'white' : 'black';
+  const opponent = isWhite ? 'black' : 'white';
+  const homeRow = isWhite ? 7 : 0;
+  const kingKey = isWhite ? 'wk' : 'bk';
+  const isKingSide = kingToC > kingFromC;
+  const rookFromC = isKingSide ? 7 : 0;
+  const rookKey = isKingSide ? (isWhite ? 'wr-ks' : 'br-ks') : (isWhite ? 'wr-qs' : 'br-qs');
+  const kingPath = isKingSide ? [5, 6] : [3, 2];
+
+  if (kingFromR !== homeRow || kingToR !== homeRow || kingFromC !== 4) return false;
+  if (pieceMoveHistory[kingKey]) return false;
+  if (pieceMoveHistory[rookKey]) return false;
+  if (board[kingToR][kingToC] !== '') return false;
+  if (isInCheck(color)) return false;
+
+  const rook = board[kingFromR][rookFromC];
+  if (!rook || rook.toLowerCase() !== 'r') return false;
+  if ((isWhite && !isWhitePiece(rook)) || (!isWhite && !isBlackPiece(rook))) return false;
+
+  if (!isCastlingPathClear(kingFromR, kingFromC, rookFromC)) return false;
+
+  for (const c of kingPath) {
+    const originalTarget = board[kingFromR][c];
+    board[kingFromR][kingFromC] = '';
+    board[kingFromR][c] = king;
+    const attacked = isSquareAttackedBy(kingFromR, c, opponent);
+    board[kingFromR][c] = originalTarget;
+    board[kingFromR][kingFromC] = king;
+
+    if (attacked) return false;
+  }
+
+  return true;
+}
+
+function isCastlingPathClear(row, fromC, rookC) {
+  const minC = Math.min(fromC, rookC);
+  const maxC = Math.max(fromC, rookC);
+  for (let c = minC + 1; c < maxC; c++) {
+    if (board[row][c] !== '') return false;
+  }
+  return true;
+}
+
+// Original isPathClear for sliding pieces
+function isPathClearDiagonal(fromR, fromC, toR, toC) {
   const dr = toR > fromR ? 1 : toR < fromR ? -1 : 0;
   const dc = toC > fromC ? 1 : toC < fromC ? -1 : 0;
 
@@ -124,7 +193,16 @@ function isPathClear(fromR, fromC, toR, toC) {
 
   return true; // path clear
 }
-
+// Handle castling by moving the rook
+function handleCastling(kingFromR, kingFromC, kingToC) {
+  // Determine rook movement
+  const rookFromC = kingToC > kingFromC ? 7 : 0; // kingside or queenside
+  const rookToC = kingToC > kingFromC ? 5 : 3;
+  
+  // Move rook
+  board[kingFromR][rookToC] = board[kingFromR][rookFromC];
+  board[kingFromR][rookFromC] = '';
+}
 // Find king position for a given color
 function findKing(color) {
   const isWhite = color === 'white';
@@ -250,29 +328,143 @@ function getAllLegalMoves(color) {
   return moves;
 }
 
-// Simple AI: pick a random legal move (can improve with heuristics)
+function scoreAIMove(move, color) {
+  const targetPiece = board[move.toR][move.toC];
+  let score = 0;
+
+  if (targetPiece) {
+    score += (PIECE_VALUES[targetPiece.toLowerCase()] || 0) * 10;
+    score -= PIECE_VALUES[move.piece.toLowerCase()] || 0;
+  }
+
+  const centerDistance = Math.abs(3.5 - move.toR) + Math.abs(3.5 - move.toC);
+  score += (7 - centerDistance) * 8;
+
+  const originalFrom = board[move.fromR][move.fromC];
+  const originalTo = board[move.toR][move.toC];
+  board[move.toR][move.toC] = originalFrom;
+  board[move.fromR][move.fromC] = '';
+
+  const opponent = color === 'white' ? 'black' : 'white';
+  if (isInCheck(opponent)) score += 140;
+  if (isSquareAttackedBy(move.toR, move.toC, opponent)) {
+    score -= (PIECE_VALUES[move.piece.toLowerCase()] || 0) * 0.8;
+  }
+
+  board[move.fromR][move.fromC] = originalFrom;
+  board[move.toR][move.toC] = originalTo;
+
+  if (move.piece.toLowerCase() === 'p' && (move.toR === 0 || move.toR === 7)) {
+    score += 760;
+  }
+
+  return score + Math.random() * 20;
+}
+
+function pickRandomMove(moves) {
+  return moves[Math.floor(Math.random() * moves.length)];
+}
+
 function getAIMove(color) {
   const moves = getAllLegalMoves(color);
   if (moves.length === 0) return null;
 
-  // Simple heuristic: prefer captures and checks
-  const captureAndCheckMoves = moves.filter(move => {
-    return board[move.toR][move.toC] !== '' || (() => {
-      board[move.toR][move.toC] = board[move.fromR][move.fromC];
-      board[move.fromR][move.fromC] = '';
-      const opponent = color === 'white' ? 'black' : 'white';
-      const givesCheck = isInCheck(opponent);
-      board[move.fromR][move.fromC] = board[move.toR][move.toC];
-      board[move.toR][move.toC] = '';
-      return givesCheck;
-    })();
-  });
-
-  if (captureAndCheckMoves.length > 0) {
-    return captureAndCheckMoves[Math.floor(Math.random() * captureAndCheckMoves.length)];
+  if (aiLevel === 1) {
+    return pickRandomMove(moves);
   }
 
-  return moves[Math.floor(Math.random() * moves.length)];
+  const scoredMoves = moves
+    .map((move) => ({ move, score: scoreAIMove(move, color) }))
+    .sort((a, b) => b.score - a.score);
+
+  if (aiLevel === 2) {
+    return pickRandomMove(scoredMoves.slice(0, Math.min(8, scoredMoves.length))).move;
+  }
+
+  if (aiLevel === 3) {
+    return pickRandomMove(scoredMoves.slice(0, Math.min(4, scoredMoves.length))).move;
+  }
+
+  if (aiLevel === 4) {
+    return pickRandomMove(scoredMoves.slice(0, Math.min(2, scoredMoves.length))).move;
+  }
+
+  return scoredMoves[0].move;
+}
+
+// Convert coordinates to algebraic notation
+function coordsToAlgebraic(r, c) {
+  const file = 'abcdefgh'[c];
+  const rank = 8 - r;
+  return file + rank;
+}
+
+// Record a move in algebraic notation
+function recordMove(fromR, fromC, toR, toC, piece, isCapture, isCastle = false) {
+  let moveNotation;
+  
+  if (isCastle) {
+    // Castling notation
+    moveNotation = toC > fromC ? 'O-O' : 'O-O-O';
+  } else {
+    const from = coordsToAlgebraic(fromR, fromC);
+    const to = coordsToAlgebraic(toR, toC);
+    const pieceSymbol = piece.toLowerCase() === 'p' ? '' : PIECE_SYMBOLS[piece].toUpperCase();
+    const captureSymbol = isCapture ? 'x' : '-';
+    moveNotation = `${pieceSymbol}${from}${captureSymbol}${to}`;
+  }
+  moveHistory.push(moveNotation);
+}
+
+function recordCapture(capturingPiece, capturedPiece) {
+  if (!capturedPiece) return;
+
+  const capturer = isWhitePiece(capturingPiece) ? 'white' : 'black';
+  capturedPieces[capturer].push(capturedPiece);
+}
+
+function renderCapturedPieces() {
+  const whiteEl = document.getElementById('captured-by-white');
+  const blackEl = document.getElementById('captured-by-black');
+  const totalEl = document.getElementById('captured-total');
+  const balanceEl = document.getElementById('material-balance');
+  if (!whiteEl || !blackEl) return;
+
+  const renderPieces = (pieces) => pieces.map((piece) => {
+    const colorClass = isBlackPiece(piece) ? 'black-piece' : 'white-piece';
+    return `<span class="captured-piece ${colorClass}">${PIECE_SYMBOLS[piece] || piece}</span>`;
+  }).join('');
+
+  whiteEl.innerHTML = renderPieces(capturedPieces.white);
+  blackEl.innerHTML = renderPieces(capturedPieces.black);
+
+  if (totalEl) {
+    const total = capturedPieces.white.length + capturedPieces.black.length;
+    totalEl.textContent = `${total} ${total === 1 ? 'piece' : 'pieces'}`;
+  }
+
+  if (balanceEl) {
+    const whiteMaterial = capturedPieces.white.reduce((sum, piece) => sum + (PIECE_VALUES[piece.toLowerCase()] || 0), 0);
+    const blackMaterial = capturedPieces.black.reduce((sum, piece) => sum + (PIECE_VALUES[piece.toLowerCase()] || 0), 0);
+    const diff = Math.round((whiteMaterial - blackMaterial) / 100);
+    balanceEl.textContent = diff === 0 ? 'Even' : `${diff > 0 ? 'White' : 'Black'} +${Math.abs(diff)}`;
+  }
+}
+
+// Record that a piece has moved
+function markPieceMoved(r, c, piece) {
+  const isWhite = isWhitePiece(piece);
+  const pieceLower = piece.toLowerCase();
+  
+  if (pieceLower === 'k') {
+    const key = isWhite ? 'wk' : 'bk';
+    pieceMoveHistory[key] = true;
+  } else if (pieceLower === 'r') {
+    // Determine if kingside or queenside rook
+    const side = c === 7 ? 'ks' : 'qs';
+    const key = isWhite ? `wr-${side}` : `br-${side}`;
+    pieceMoveHistory[key] = true;
+  }
 }
 
 function initStartingBoard() {
@@ -286,6 +478,7 @@ function initStartingBoard() {
     ['P','P','P','P','P','P','P','P'],
     ['R','N','B','Q','K','B','N','R']
   ];
+  pieceMoveHistory = {}; // Reset castling eligibility
 }
 
 function renderBoard() {
@@ -327,7 +520,7 @@ function renderBoard() {
       const pieceCode = board[r][c];
       if (pieceCode) {
         const p = document.createElement('div');
-        p.className = 'piece';
+        p.className = `piece ${isWhitePiece(pieceCode) ? 'white-board-piece' : 'black-board-piece'}`;
         p.textContent = PIECE_SYMBOLS[pieceCode] || pieceCode;
         square.appendChild(p);
       }
@@ -373,9 +566,27 @@ function handleSquareClick(r, c) {
       return;
     }
 
+    // Check if this is a castling move
+    const isCastling = piece.toLowerCase() === 'k' && Math.abs(c - fromC) === 2;
+
     // Allow move to any square (including captures)
+    const capturedPiece = board[r][c];
+    const isCapture = capturedPiece !== '';
     board[r][c] = board[fromR][fromC];
     board[fromR][fromC] = '';
+    
+    // Handle castling rook movement
+    if (isCastling) {
+      handleCastling(fromR, fromC, c);
+    }
+    
+    // Record the piece as moved
+    markPieceMoved(fromR, fromC, piece);
+
+    recordCapture(piece, capturedPiece);
+    
+    // Record the move
+    recordMove(fromR, fromC, r, c, piece, isCapture, isCastling);
 
     // Handle pawn promotion
     if (piece.toLowerCase() === 'p') {
@@ -387,10 +598,13 @@ function handleSquareClick(r, c) {
 
     // Switch turn
     currentTurn = currentTurn === 'white' ? 'black' : 'white';
+    startChessClock();
 
     selectedSquare = null;
     renderBoard();
     updateTurnIndicator();
+    updateMoveHistory();
+    renderCapturedPieces();
 
     // Check for check/checkmate
     checkGameStatus();
@@ -414,13 +628,36 @@ function checkGameStatus() {
     gameOver = true;
     gameOverReason = 'Stalemate! Draw.';
   }
+
+  if (gameOver) {
+    stopChessClock();
+    updateTurnIndicator();
+  }
 }
 
 function makeAIMove() {
   const move = getAIMove(currentTurn);
   if (move) {
+    // Check if this is a castling move
+    const isCastling = move.piece.toLowerCase() === 'k' && Math.abs(move.toC - move.fromC) === 2;
+    
+    const capturedPiece = board[move.toR][move.toC];
+    const isCapture = capturedPiece !== '';
     board[move.toR][move.toC] = board[move.fromR][move.fromC];
     board[move.fromR][move.fromC] = '';
+    
+    // Handle castling rook movement
+    if (isCastling) {
+      handleCastling(move.fromR, move.fromC, move.toC);
+    }
+    
+    // Record the piece as moved
+    markPieceMoved(move.fromR, move.fromC, move.piece);
+
+    recordCapture(move.piece, capturedPiece);
+    
+    // Record the move
+    recordMove(move.fromR, move.fromC, move.toR, move.toC, move.piece, isCapture, isCastling);
 
     // Handle pawn promotion
     if (move.piece.toLowerCase() === 'p') {
@@ -431,11 +668,84 @@ function makeAIMove() {
     }
 
     currentTurn = currentTurn === 'white' ? 'black' : 'white';
+    startChessClock();
     selectedSquare = null;
     renderBoard();
     updateTurnIndicator();
+    updateMoveHistory();
+    renderCapturedPieces();
     checkGameStatus();
   }
+}
+
+function isGameInProgress() {
+  return moveHistory.length > 0 && !gameOver;
+}
+
+function confirmGameReset() {
+  if (!isGameInProgress()) return true;
+  return window.confirm('Changing this will reset the current game. You will lose all moves, captured pieces, and timer progress. Continue?');
+}
+
+function formatClock(seconds) {
+  const safeSeconds = Math.max(0, seconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
+function updateClockDisplay() {
+  const whiteClockEl = document.getElementById('white-clock');
+  const blackClockEl = document.getElementById('black-clock');
+  const whiteCard = document.getElementById('white-clock-card');
+  const blackCard = document.getElementById('black-clock-card');
+
+  if (whiteClockEl) whiteClockEl.textContent = formatClock(clocks.white);
+  if (blackClockEl) blackClockEl.textContent = formatClock(clocks.black);
+
+  if (whiteCard && blackCard) {
+    whiteCard.classList.toggle('active', currentTurn === 'white' && !gameOver);
+    blackCard.classList.toggle('active', currentTurn === 'black' && !gameOver);
+    whiteCard.classList.toggle('low-time', clocks.white <= 30);
+    blackCard.classList.toggle('low-time', clocks.black <= 30);
+  }
+}
+
+function stopChessClock() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+}
+
+function startChessClock() {
+  if (clockStarted || gameOver) return;
+  clockStarted = true;
+  timerInterval = setInterval(() => {
+    if (gameOver) {
+      stopChessClock();
+      return;
+    }
+
+    clocks[currentTurn] -= 1;
+    if (clocks[currentTurn] <= 0) {
+      clocks[currentTurn] = 0;
+      gameOver = true;
+      gameOverReason = `${currentTurn === 'white' ? 'White' : 'Black'} lost on time.`;
+      stopChessClock();
+      updateTurnIndicator();
+    }
+
+    updateClockDisplay();
+  }, 1000);
+}
+
+function resetClocks() {
+  stopChessClock();
+  clockStarted = false;
+  const seconds = timeControlMinutes * 60;
+  clocks = { white: seconds, black: seconds };
+  updateClockDisplay();
 }
 
 function updateTurnIndicator() {
@@ -444,26 +754,56 @@ function updateTurnIndicator() {
   if (!turnEl) {
     turnEl = document.createElement('div');
     turnEl.id = 'turn-indicator';
+    turnEl.className = 'turn-indicator';
     appEl.insertBefore(turnEl, appEl.firstChild);
   }
   
   if (gameOver) {
     turnEl.textContent = gameOverReason;
-    turnEl.style.color = '#e74c3c';
+    turnEl.style.color = '#a33c31';
   } else {
-    turnEl.textContent = `Turn: ${currentTurn === 'white' ? '⚪ White' : '⚫ Black'}`;
-    turnEl.style.color = '#333';
+    turnEl.textContent = `${currentTurn === 'white' ? 'White' : 'Black'} to move`;
+    turnEl.style.color = '#161a1d';
   }
+  updateClockDisplay();
+}
+
+function updateMoveHistory() {
+  const historyEl = document.getElementById('move-history-list');
+  const countEl = document.querySelector('.move-count');
+  if (!historyEl) return;
+
+  if (countEl) {
+    countEl.textContent = `${moveHistory.length} ${moveHistory.length === 1 ? 'move' : 'moves'}`;
+  }
+  
+  historyEl.innerHTML = moveHistory.map((move, index) => {
+    const moveNum = Math.floor(index / 2) + 1;
+    const isWhiteMove = index % 2 === 0;
+    const label = isWhiteMove ? `${moveNum}.` : '';
+    return `<span class="move-item">${label} ${move}</span>`;
+  }).join('');
+  
+  // Scroll to bottom
+  historyEl.scrollTop = historyEl.scrollHeight;
 }
 
 function initBoard() {
+  stopChessClock();
   initStartingBoard();
   currentTurn = 'white';
   selectedSquare = null;
   gameOver = false;
   gameOverReason = '';
+  moveHistory = [];
+  capturedPieces = { white: [], black: [] };
+  clockStarted = false;
+  clocks = { white: timeControlMinutes * 60, black: timeControlMinutes * 60 };
   renderBoard();
   updateTurnIndicator();
+  updateMoveHistory();
+  renderCapturedPieces();
+  updateClockDisplay();
 }
 
 function setGameMode(mode) {
@@ -472,12 +812,55 @@ function setGameMode(mode) {
 }
 
 function selectMode(mode) {
+  const nextMode = mode === 'local' ? 'two-player' : mode;
+  if (nextMode === gameMode) return;
+
+  if (!confirmGameReset()) return;
+
+  document.querySelectorAll('.mode-btn').forEach((button) => {
+    button.classList.toggle(
+      'active',
+      button.textContent.trim().toLowerCase() === (mode === 'vs-ai' ? 'computer' : mode)
+    );
+  });
+
   if (mode === 'lichess') {
-    document.getElementById('lichess-panel').style.display = 'block';
+    gameMode = 'lichess';
+    document.getElementById('lichess-panel').style.display = 'grid';
+    initBoard();
   } else {
     document.getElementById('lichess-panel').style.display = 'none';
-    setGameMode(mode === 'local' ? 'two-player' : 'vs-ai');
+    setGameMode(nextMode);
   }
+}
+
+function changeTimeControl(value) {
+  const previousValue = String(timeControlMinutes);
+  if (!confirmGameReset()) {
+    const control = document.getElementById('time-control');
+    if (control) control.value = previousValue;
+    return;
+  }
+
+  timeControlMinutes = Number(value);
+  initBoard();
+}
+
+function changeAILevel(value) {
+  const previousValue = String(aiLevel);
+  if (!confirmGameReset()) {
+    const control = document.getElementById('ai-level');
+    if (control) control.value = previousValue;
+    return;
+  }
+
+  aiLevel = Number(value);
+  initBoard();
+}
+
+function newGame() {
+  if (!confirmGameReset()) return;
+  initBoard();
 }
 
 // Lichess API functions
@@ -568,5 +951,10 @@ window.initBoard = initBoard;
 window.currentTurn = () => currentTurn;
 window.setGameMode = setGameMode;
 window.selectMode = selectMode;
+window.changeTimeControl = changeTimeControl;
+window.changeAILevel = changeAILevel;
+window.newGame = newGame;
 window.lichessLogin = lichessLogin;
 window.generateLichessChallenge = generateLichessChallenge;
+
+initBoard();
